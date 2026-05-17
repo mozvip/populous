@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Populous Clone</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="cursor-canvas"></canvas>
+  <div id="hud">
+    <div class="panel">
+      <div class="row"><span class="badge blue"></span>Blue (you)</div>
+      <div>Population: <span id="blue-pop">0</span></div>
+      <div>Mana: <span id="blue-mana">0</span></div>
+      <div class="row"><span class="badge red"></span>Red (AI)</div>
+      <div>Population: <span id="red-pop">0</span></div>
+    </div>
+    <div id="message"></div>
+    <div id="help">
+      <strong>Left click</strong>: raise vertex &nbsp; <strong>Right click</strong>: lower vertex<br>
+      <strong>Right drag</strong>: pan &nbsp; <strong>Middle drag</strong>: rotate &nbsp; <strong>Scroll</strong>: zoom &nbsp; <strong>R</strong>: restart<br>
+      <em>Help your blue tribe expand by flattening land for them to build on.</em>
+    </div>
+  </div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
