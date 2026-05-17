@@ -68,3 +68,70 @@ canvas { display: block; }
 #message.show { opacity: 1; }
 
 #cursor-canvas { display: none; }
+
+#spell-ribbon {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  pointer-events: auto;
+  z-index: 11;
+}
+.spell {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 6px 4px 4px;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.spell:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+.spell svg {
+  width: 28px;
+  height: 28px;
+  color: #ffd070;
+  flex: 0 0 auto;
+}
+.spell .name {
+  font-size: 10px;
+  margin-top: 4px;
+  font-weight: bold;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.spell .cost {
+  position: absolute;
+  bottom: 2px;
+  right: 5px;
+  font-size: 10px;
+  color: #6cc4ff;
+  font-weight: bold;
+}
+.spell.selected {
+  background: rgba(255, 208, 112, 0.22);
+  border-color: #ffd070;
+  box-shadow: 0 0 12px rgba(255, 208, 112, 0.45);
+}
+.spell.disabled {
+  opacity: 0.45;
+  filter: grayscale(60%);
+}
+.spell.disabled .cost { color: #ff8888; }
