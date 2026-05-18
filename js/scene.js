@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GRID } from './constants.js';
 import { BIOMES, biomeState } from './biomes.js';
+import { setWeather } from './weather.js';
 
 // =====================================================================
 // Scene
@@ -78,6 +79,7 @@ export function applyBiome(name) {
   hemi.color.set(b.hemiSky);
   hemi.groundColor.set(b.hemiGround);
   water.material.color.set(b.water);
+  setWeather(name);
 }
 
 window.addEventListener('resize', () => {

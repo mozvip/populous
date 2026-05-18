@@ -4,6 +4,7 @@ import { BIOME_NAMES, biomeState } from './js/biomes.js';
 import { scene, camera, renderer, controls, applyBiome } from './js/scene.js';
 import { Game, gameRef } from './js/entities.js';
 import { buildSpellRibbon, updateHUD, initInput } from './js/ui.js';
+import { updateWeather } from './js/weather.js';
 
 // =====================================================================
 // Boot
@@ -29,6 +30,7 @@ const clock = new THREE.Clock();
 function tick() {
   const dt = Math.min(0.1, clock.getDelta());
   gameRef.current.update(dt);
+  updateWeather(dt);
   // Keep the pan target reasonably close to the island so the player can't
   // accidentally fly off into empty ocean.
   controls.target.x = Math.max(0, Math.min(GRID, controls.target.x));
