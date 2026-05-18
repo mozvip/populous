@@ -60,7 +60,7 @@ export class Walker {
       if (best) break;
     }
     if (best) {
-      this.target = { kind: 'move', x: best.x + 1, z: best.z + 1 };
+      this.target = { kind: 'build', cx: best.x, cz: best.z };
       return;
     }
 
@@ -348,27 +348,6 @@ export class Game {
     const el = document.getElementById('message');
     el.textContent = msg + ' — press R to restart';
     el.classList.add('show');
-  }
-
-  // Global flood: lower the whole heightmap by one step, sink any house
-  // whose footprint now sits at or below sea level, and drown walkers
-  // caught in newly-submerged cells. Surviving houses drop with the land.
-  castFlood() {
-    this.terrain.flood();
-    for (const h of this.houses) {
-      h.terrainH -= 1;
-      if (h.terrainH < 1) {
-        h.dead = true;
-      } else {
-        h.mesh.position.y = h.terrainH * STEP;
-      }
-    }
-    for (const w of this.walkers) {
-      const cx = Math.floor(w.x), cz = Math.floor(w.z);
-      if (!this.terrain.cInside(cx, cz) || this.terrain.cellMin(cx, cz) < 1) {
-        w.dead = true;
-      }
-    }
   }
 
   aiTurn() {
