@@ -3,7 +3,7 @@ import { GRID, STEP, TEAM_BLUE, TEAM_RED } from './constants.js';
 import { BIOMES, BIOME_NAMES, biomeState } from './biomes.js';
 import { scene, camera, renderer } from './scene.js';
 import { gameRef } from './entities.js';
-import { castFlood, castVolcano } from './powers.js';
+import { castFlood, castVolcano, castArmageddon } from './powers.js';
 
 // =====================================================================
 // Spells — the seven "acts of God" from the 1989 game. Sculpt is the
@@ -210,6 +210,14 @@ export function initInput({ onRestart }) {
       game.mana[TEAM_BLUE] -= spell.cost;
       castVolcano(game, v.x, v.z);
       flashMessage('Volcano!');
+      cursor.visible = false;
+      return;
+    }
+
+    if (spell.id === 'armageddon') {
+      game.mana[TEAM_BLUE] -= spell.cost;
+      castArmageddon(game);
+      flashMessage('Armageddon!');
       cursor.visible = false;
       return;
     }

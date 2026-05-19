@@ -1,5 +1,14 @@
 import { MAX_H, STEP } from './constants.js';
 
+// Armageddon: wipe every house and flip the game into "rally to the centre"
+// mode. Walkers themselves change behaviour via the `armageddon` flag read in
+// Walker.pickTarget — see entities.js. Once cast, the only thing left to
+// settle is which team's followers survive the brawl.
+export function castArmageddon(game) {
+  game.armageddon = true;
+  for (const h of game.houses) h.dead = true;
+}
+
 // Global flood: lower the whole heightmap by one step, sink any house
 // whose footprint now sits at or below sea level, and drown walkers
 // caught in newly-submerged cells. Surviving houses drop with the land.

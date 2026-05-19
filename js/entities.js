@@ -33,6 +33,29 @@ export class Walker {
   }
 
   pickTarget(game) {
+    if (game.armageddon) {
+      // Final battle: skip building, attack any enemy in striking range,
+      // otherwise march on the map centre with a little jitter so walkers
+      // don't pile onto a single vertex.
+      let nearest = null, ed = Infinity;
+      for (const w of game.walkers) {
+        if (w.team === this.team || w.dead) continue;
+        const dd = (w.x - this.x) ** 2 + (w.z - this.z) ** 2;
+        if (dd < ed) { ed = dd; nearest = w; }
+      }
+      if (nearest && ed < 100) {
+        this.target = { kind: 'attack', walker: nearest };
+        return;
+      }
+      const half = GRID / 2;
+      this.target = {
+        kind: 'wander',
+        x: half + (Math.random() - 0.5) * 2,
+        z: half + (Math.random() - 0.5) * 2,
+      };
+      return;
+    }
+
     const cx = Math.floor(this.x), cz = Math.floor(this.z);
 
     if (game.terrain.isFlatArea(cx, cz, 2) && !this.houseAt(cx, cz, game)) {
@@ -212,7 +235,7 @@ export class House {
     }
     this.spawnTimer -= dt;
     const pop = game.popOf(this.team);
-    const capacity = game.housesOf(this.team) * 5;
+    const capacity = game.housesOf(this.team) * 3;
     if (this.spawnTimer <= 0 && pop < capacity) {
       game.spawnWalker(this.x + 1, this.z + 1, this.team);
       this.spawnTimer = 3.5 + Math.random() * 2;
@@ -244,6 +267,7 @@ export class Game {
     this.mana    = { [TEAM_BLUE]: 20, [TEAM_RED]: 20 };
     this.aiCooldown = 4;
     this.gameOver   = false;
+    this.armageddon = false;
     this.spawnInitial();
   }
 
