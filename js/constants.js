@@ -3,9 +3,9 @@ import * as THREE from 'three';
 // =====================================================================
 // Constants
 // =====================================================================
-export const GRID  = 48;           // cells per side
+export const GRID  = 64;           // cells per side
 export const VW    = GRID + 1;     // vertex grid is one larger than cell grid
-export const STEP  = 0.5;          // world units per integer height level
+export const STEP  = 0.7;          // world units per integer height level
 export const MAX_H = 8;
 
 export const TEAM_BLUE = 1;
