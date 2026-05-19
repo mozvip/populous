@@ -117,7 +117,7 @@ export class Terrain {
           0.6 * pseudoNoise(x * 0.18, z * 0.18) +
           0.3 * pseudoNoise(x * 0.40 + 9, z * 0.40 - 5) +
           0.1 * pseudoNoise(x * 0.90, z * 0.90);
-        let h = (n * 4 + falloff * 4) - 1.5;
+        let h = (n * 7 + falloff * 4) - 1.5;
         h = Math.round(h);
         this.setV(x, z, Math.max(0, Math.min(MAX_H, h)));
       }
