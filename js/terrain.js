@@ -15,10 +15,24 @@ import { scene } from './scene.js';
 // four corner heights that may all differ, producing sloped triangles.
 // `owner[c]` is per-cell ownership for the territory tint.
 // =====================================================================
+// Rocks are decorative-but-blocking obstacles that sit on cells. Once a
+// rock exists, building on that cell is impossible; lowering the terrain
+// under it until the cell goes underwater removes the rock. Shared
+// geometry/material keep the per-rock cost minimal.
+const sharedRockGeo = new THREE.DodecahedronGeometry(0.42, 0);
+const sharedRockMat = new THREE.MeshLambertMaterial({
+  color: 0x6b6b70,
+  flatShading: true,
+});
+
 export class Terrain {
   constructor() {
     this.h = new Int8Array(VW * VW);
     this.owner = new Int8Array(GRID * GRID);
+    this.rocks = new Set();
+    this.rockMeshes = new Map();
+    this.rockGroup = new THREE.Group();
+    scene.add(this.rockGroup);
     this.geo = new THREE.BufferGeometry();
     this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
     this.mesh = new THREE.Mesh(this.geo, this.mat);
@@ -27,6 +41,7 @@ export class Terrain {
     scene.add(this.mesh);
     this.generate();
     this.rebuild();
+    this.generateRocks();
   }
 
   // --- vertex helpers ---
@@ -65,7 +80,8 @@ export class Terrain {
   }
 
   // Returns true if a `size` x `size` block of cells starting at (cx, cz)
-  // is perfectly flat at the same height — needed for building.
+  // is perfectly flat at the same height — needed for building. Cells
+  // carrying a rock disqualify the footprint regardless of height.
   isFlatArea(cx, cz, size = 2) {
     if (cx < 0 || cz < 0 || cx + size > GRID || cz + size > GRID) return false;
     const h0 = this.getV(cx, cz);
@@ -75,7 +91,75 @@ export class Terrain {
         if (this.getV(cx + dx, cz + dz) !== h0) return false;
       }
     }
+    for (let dz = 0; dz < size; dz++) {
+      for (let dx = 0; dx < size; dx++) {
+        if (this.hasRock(cx + dx, cz + dz)) return false;
+      }
+    }
     return true;
+  }
+
+  // --- rocks ---
+  rockKey(cx, cz) { return cz * GRID + cx; }
+  hasRock(cx, cz) {
+    if (!this.cInside(cx, cz)) return false;
+    return this.rocks.has(this.rockKey(cx, cz));
+  }
+  addRock(cx, cz) {
+    if (!this.cInside(cx, cz)) return;
+    const k = this.rockKey(cx, cz);
+    if (this.rocks.has(k)) return;
+    this.rocks.add(k);
+    const m = new THREE.Mesh(sharedRockGeo, sharedRockMat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    m.rotation.set(
+      Math.random() * 0.5,
+      Math.random() * Math.PI * 2,
+      Math.random() * 0.5,
+    );
+    const s = 0.65 + Math.random() * 0.45;
+    m.scale.set(s, 0.55 + Math.random() * 0.4, s);
+    this.rockMeshes.set(k, m);
+    this.rockGroup.add(m);
+    this.positionRock(k);
+  }
+  removeRock(k) {
+    const m = this.rockMeshes.get(k);
+    if (!m) return;
+    this.rockGroup.remove(m);
+    this.rockMeshes.delete(k);
+    this.rocks.delete(k);
+  }
+  positionRock(k) {
+    const m = this.rockMeshes.get(k);
+    if (!m) return;
+    const cx = k % GRID;
+    const cz = Math.floor(k / GRID);
+    const minH = this.cellMin(cx, cz);
+    if (minH < 1) {
+      this.removeRock(k);
+      return;
+    }
+    m.position.set(cx + 0.5, minH * STEP, cz + 0.5);
+  }
+  updateRockPositions() {
+    for (const k of [...this.rocks]) this.positionRock(k);
+  }
+  generateRocks() {
+    const ROCK_DENSITY = 0.012;
+    for (let cz = 0; cz < GRID; cz++) {
+      for (let cx = 0; cx < GRID; cx++) {
+        if (!this.cellWalkable(cx, cz)) continue;
+        if (Math.random() < ROCK_DENSITY) this.addRock(cx, cz);
+      }
+    }
+  }
+  disposeRocks() {
+    scene.remove(this.rockGroup);
+    this.rockGroup.clear();
+    this.rocks.clear();
+    this.rockMeshes.clear();
   }
 
   getOwner(cx, cz) {
@@ -250,6 +334,7 @@ export class Terrain {
     this.geo.setAttribute('color',    new THREE.Float32BufferAttribute(colors,    3));
     this.geo.computeBoundingSphere();
     this.mesh.geometry = this.geo;
+    this.updateRockPositions();
   }
 }
 

@@ -49,7 +49,24 @@ export function castVolcano(game, vx, vz) {
   }
   terrain.rebuild();
 
-  const KILL = 3;
+  // Scatter rocks on the cone's outer slope so the eruption leaves
+  // permanent obstacles even after the lava cools and the terrain is
+  // smoothed back down.
+  const ROCK_INNER = 3;
+  const ROCK_OUTER = 6;
+  for (let dz = -ROCK_OUTER; dz <= ROCK_OUTER; dz++) {
+    for (let dx = -ROCK_OUTER; dx <= ROCK_OUTER; dx++) {
+      const cheb = Math.max(Math.abs(dx), Math.abs(dz));
+      if (cheb < ROCK_INNER || cheb > ROCK_OUTER) continue;
+      if (Math.random() > 0.35) continue;
+      const cx = vx + dx, cz = vz + dz;
+      if (!terrain.cInside(cx, cz)) continue;
+      if (terrain.cellMin(cx, cz) < 1) continue;
+      terrain.addRock(cx, cz);
+    }
+  }
+
+  const KILL = MAX_H;
   for (const w of game.walkers) {
     if (Math.max(Math.abs(w.x - vx), Math.abs(w.z - vz)) <= KILL) {
       w.dead = true;

@@ -114,6 +114,11 @@ export class Walker {
   }
 
   update(dt, game) {
+    const cx = Math.floor(this.x), cz = Math.floor(this.z);
+    if (game.terrain.cellMin(cx, cz) < 1) {
+      this.dead = true;
+      return;
+    }
     this.thinkCooldown -= dt;
     if (!this.target || this.thinkCooldown <= 0) {
       this.pickTarget(game);
@@ -424,6 +429,7 @@ export class Game {
   destroy() {
     for (const w of this.walkers) w.dispose();
     for (const h of this.houses)  h.dispose();
+    this.terrain.disposeRocks();
     scene.remove(this.terrain.mesh);
     this.terrain.geo.dispose();
     this.terrain.mat.dispose();
