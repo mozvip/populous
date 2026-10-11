@@ -2,6 +2,11 @@ import * as THREE from 'three';
 import { GRID, STEP, TEAM_BLUE, TEAM_RED } from './constants.js';
 import { scene } from './scene.js';
 import { Terrain } from './terrain.js';
+import { LEVELS, makeBuilding } from './buildings.js';
+
+const ZONE = 2;                                    // cells around the footprint
+const ZONE_CELLS = (2 + 2 * ZONE) ** 2 - 4;        // 32 surrounding cells
+const GROW_TIME = 2.5;                             // seconds per upgrade step
 
 // =====================================================================
 // Walker
@@ -196,29 +201,25 @@ export class House {
     this.dead = false;
     this.spawnTimer = 4 + Math.random() * 3;
     this.terrainH = terrainH;
+    this.level = 0;
+    this.targetLevel = 0;
+    this.evalTimer = 0;
+    this.growTimer = GROW_TIME;
+    this.anim = 1;
 
     const group = new THREE.Group();
-    const wallCol = team === TEAM_BLUE ? 0xa8c8e8 : 0xe8b0a8;
-    const roofCol = team === TEAM_BLUE ? 0x224488 : 0x882222;
-    const walls = new THREE.Mesh(
-      new THREE.BoxGeometry(1.6, 0.7, 1.6),
-      new THREE.MeshLambertMaterial({ color: wallCol })
-    );
-    walls.position.y = 0.35;
-    walls.castShadow = true;
-    group.add(walls);
-    const roof = new THREE.Mesh(
-      new THREE.ConeGeometry(1.25, 0.7, 4),
-      new THREE.MeshLambertMaterial({ color: roofCol, flatShading: true })
-    );
-    roof.position.y = 0.7 + 0.35;
-    roof.rotation.y = Math.PI / 4;
-    roof.castShadow = true;
-    group.add(roof);
-
     group.position.set(x + 1, terrainH * STEP, z + 1);
     scene.add(group);
     this.mesh = group;
+    this.setLevel(0);
+  }
+
+  setLevel(level) {
+    if (this.model) this.mesh.remove(this.model);
+    this.level = level;
+    this.model = makeBuilding(level, this.team);
+    this.mesh.add(this.model);
+    this.anim = 0;
   }
 
   // Verify that every one of the 9 footprint vertices still sits at the
@@ -233,26 +234,74 @@ export class House {
     return true;
   }
 
+  // Populous-style growth: count the flat cells at the settlement's height
+  // in the 6x6 zone around it (2 cells beyond the footprint on every side).
+  // Rocks, enemy land and other settlements' footprints don't count. A
+  // fully flat zone (32 surrounding cells) yields a castle.
+  zoneLevel(game) {
+    const t = game.terrain;
+    let flat = 0;
+    for (let cz = this.z - ZONE; cz < this.z + 2 + ZONE; cz++) {
+      for (let cx = this.x - ZONE; cx < this.x + 2 + ZONE; cx++) {
+        if (cx >= this.x && cx < this.x + 2 && cz >= this.z && cz < this.z + 2) continue;
+        if (!t.cInside(cx, cz) || !t.cellIsFlat(cx, cz)) continue;
+        if (t.getV(cx, cz) !== this.terrainH || t.hasRock(cx, cz)) continue;
+        const own = t.getOwner(cx, cz);
+        if (own !== 0 && own !== this.team) continue;
+        if (game.houses.some(h => h !== this && !h.dead &&
+            h.x <= cx && cx < h.x + 2 && h.z <= cz && cz < h.z + 2)) continue;
+        flat++;
+      }
+    }
+    return Math.min(LEVELS.length - 1, Math.floor(flat * LEVELS.length / ZONE_CELLS));
+  }
+
+  get capacity() { return LEVELS[this.level].capacity; }
+
   update(dt, game) {
     if (!this.footprintOk(game.terrain)) {
       this.dead = true;
       return;
     }
+
+    this.evalTimer -= dt;
+    if (this.evalTimer <= 0) {
+      this.targetLevel = this.zoneLevel(game);
+      this.evalTimer = 0.5;
+      // Losing land shrinks the settlement at once; growing takes time.
+      if (this.targetLevel < this.level) this.setLevel(this.targetLevel);
+    }
+    if (this.targetLevel > this.level) {
+      this.growTimer -= dt;
+      if (this.growTimer <= 0) {
+        this.setLevel(this.level + 1);
+        this.growTimer = GROW_TIME;
+      }
+    } else {
+      this.growTimer = GROW_TIME;
+    }
+
+    if (this.anim < 1) {
+      this.anim = Math.min(1, this.anim + dt / 0.35);
+      // ease-out-back: overshoots slightly so upgrades read as a "pop"
+      const a = this.anim - 1;
+      const k = 1 + 2.7 * a * a * a + 1.7 * a * a;
+      this.model.scale.set(1, 0.4 + 0.6 * k, 1);
+    }
+
     this.spawnTimer -= dt;
     const pop = game.popOf(this.team);
-    const capacity = game.housesOf(this.team) * 3;
-    if (this.spawnTimer <= 0 && pop < capacity) {
+    if (this.spawnTimer <= 0 && pop < game.capacityOf(this.team)) {
       game.spawnWalker(this.x + 1, this.z + 1, this.team);
-      this.spawnTimer = 3.5 + Math.random() * 2;
+      // Bigger settlements breed faster.
+      this.spawnTimer = (3.5 + Math.random() * 2) * (1 - 0.06 * this.level);
     }
   }
 
   dispose() {
+    // Geometry and materials are shared across all settlements of a level
+    // (see buildings.js), so only detach the instance.
     scene.remove(this.mesh);
-    this.mesh.traverse(o => {
-      if (o.geometry) o.geometry.dispose();
-      if (o.material) o.material.dispose();
-    });
   }
 }
 
@@ -371,6 +420,11 @@ export class Game {
 
   popOf(team)    { return this.walkers.filter(w => w.team === team).length; }
   housesOf(team) { return this.houses.filter(h => h.team === team).length; }
+  capacityOf(team) {
+    let cap = 0;
+    for (const h of this.houses) if (h.team === team) cap += h.capacity;
+    return cap;
+  }
 
   endGame(msg) {
     this.gameOver = true;

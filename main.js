@@ -5,10 +5,12 @@ import { scene, camera, renderer, controls, applyBiome } from './js/scene.js';
 import { Game, gameRef } from './js/entities.js';
 import { buildSpellRibbon, updateHUD, initInput } from './js/ui.js';
 import { updateWeather } from './js/weather.js';
+import { loadBuildings } from './js/buildings.js';
 
 // =====================================================================
 // Boot
 // =====================================================================
+await loadBuildings();
 applyBiome(biomeState.current);
 gameRef.current = new Game();
 buildSpellRibbon();

@@ -70,6 +70,21 @@ populous/
 The whole game is intentionally kept in one `main.js` file (~600 lines) for
 readability.
 
+## Building models
+
+Settlement models (tent → castle) are generated procedurally in Blender and
+exported to `assets/buildings.glb`. To tweak them, edit
+`tools/build_models.py` and regenerate:
+
+```sh
+blender -b --factory-startup -P tools/build_models.py -- assets/buildings.glb
+# optional: add a second path to render a preview strip of all levels
+blender -b --factory-startup -P tools/build_models.py -- assets/buildings.glb preview.png
+```
+
+Faces using the `team` material are recolored per tribe at runtime
+(`js/buildings.js`).
+
 ## Tech
 
 - [three.js](https://threejs.org/) r160 (via jsDelivr CDN)
