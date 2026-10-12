@@ -1,4 +1,4 @@
-import { MAX_H, STEP } from './constants.js';
+import { GRID, MAX_H, STEP } from './constants.js';
 
 // Armageddon: wipe every house and flip the game into "rally to the centre"
 // mode. Walkers themselves change behaviour via the `armageddon` flag read in
@@ -67,6 +67,13 @@ export function castVolcano(game, vx, vz) {
   }
 
   const KILL = MAX_H;
+  // The eruption burns every tree in the blast zone.
+  for (const k of [...terrain.trees]) {
+    const cx = k % GRID, cz = Math.floor(k / GRID);
+    if (Math.max(Math.abs(cx + 0.5 - vx), Math.abs(cz + 0.5 - vz)) <= KILL) {
+      terrain.removeTree(k);
+    }
+  }
   for (const w of game.walkers) {
     if (Math.max(Math.abs(w.x - vx), Math.abs(w.z - vz)) <= KILL) {
       w.dead = true;

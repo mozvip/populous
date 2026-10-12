@@ -4,7 +4,8 @@ import {
   TEAM_BLUE, TEAM_RED, TINT_BLUE, TINT_RED,
   NEI8,
 } from './constants.js';
-import { pickTerrainColor } from './biomes.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { BIOMES, biomeState, pickTerrainColor } from './biomes.js';
 import { scene } from './scene.js';
 import { updateShoreField } from './water.js';
 
@@ -26,6 +27,42 @@ const sharedRockMat = new THREE.MeshLambertMaterial({
   flatShading: true,
 });
 
+// Trees work like rocks — they block building and settlement growth on
+// their cell, ride the terrain when it is reshaped and drown when the cell
+// goes underwater — but walkers can pass through them. Each tree is a
+// single merged trunk + two-tier canopy geometry with vertex colors, built
+// once per biome so a forest costs one draw call per tree.
+const treeGeoCache = new Map();
+const sharedTreeMat = new THREE.MeshLambertMaterial({
+  vertexColors: true,
+  flatShading: true,
+});
+function paint(geo, hex) {
+  const c = new THREE.Color(hex);
+  const n = geo.attributes.position.count;
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
+}
+function treeGeometry() {
+  const name = biomeState.current;
+  if (treeGeoCache.has(name)) return treeGeoCache.get(name);
+  const { trunk, foliage } = BIOMES[name].tree;
+  const parts = [
+    paint(new THREE.CylinderGeometry(0.05, 0.08, 0.4, 5).translate(0, 0.2, 0), trunk),
+    paint(new THREE.ConeGeometry(0.34, 0.6, 6).translate(0, 0.55, 0), foliage),
+    paint(new THREE.ConeGeometry(0.25, 0.5, 6).translate(0, 0.85, 0), foliage),
+  ];
+  // Cones/cylinders carry uv while some builds differ; strip to the
+  // attributes mergeGeometries needs to match.
+  for (const g of parts) g.deleteAttribute('uv');
+  const geo = mergeGeometries(parts.map(g => g.toNonIndexed()));
+  for (const g of parts) g.dispose();
+  treeGeoCache.set(name, geo);
+  return geo;
+}
+
 export class Terrain {
   constructor() {
     this.h = new Int8Array(VW * VW);
@@ -34,6 +71,10 @@ export class Terrain {
     this.rockMeshes = new Map();
     this.rockGroup = new THREE.Group();
     scene.add(this.rockGroup);
+    this.trees = new Set();
+    this.treeMeshes = new Map();
+    this.treeGroup = new THREE.Group();
+    scene.add(this.treeGroup);
     this.geo = new THREE.BufferGeometry();
     this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
     this.mesh = new THREE.Mesh(this.geo, this.mat);
@@ -43,6 +84,7 @@ export class Terrain {
     this.generate();
     this.rebuild();
     this.generateRocks();
+    this.generateTrees();
   }
 
   // --- vertex helpers ---
@@ -82,7 +124,7 @@ export class Terrain {
 
   // Returns true if a `size` x `size` block of cells starting at (cx, cz)
   // is perfectly flat at the same height — needed for building. Cells
-  // carrying a rock disqualify the footprint regardless of height.
+  // carrying a rock or tree disqualify the footprint regardless of height.
   isFlatArea(cx, cz, size = 2) {
     if (cx < 0 || cz < 0 || cx + size > GRID || cz + size > GRID) return false;
     const h0 = this.getV(cx, cz);
@@ -94,7 +136,7 @@ export class Terrain {
     }
     for (let dz = 0; dz < size; dz++) {
       for (let dx = 0; dx < size; dx++) {
-        if (this.hasRock(cx + dx, cz + dz)) return false;
+        if (this.isBlocked(cx + dx, cz + dz)) return false;
       }
     }
     return true;
@@ -110,6 +152,7 @@ export class Terrain {
     if (!this.cInside(cx, cz)) return;
     const k = this.rockKey(cx, cz);
     if (this.rocks.has(k)) return;
+    this.removeTree(k);
     this.rocks.add(k);
     const m = new THREE.Mesh(sharedRockGeo, sharedRockMat);
     m.castShadow = true;
@@ -161,6 +204,76 @@ export class Terrain {
     this.rockGroup.clear();
     this.rocks.clear();
     this.rockMeshes.clear();
+  }
+
+  // --- trees ---
+  hasTree(cx, cz) {
+    if (!this.cInside(cx, cz)) return false;
+    return this.trees.has(this.rockKey(cx, cz));
+  }
+  // A cell that can't host a building or count towards settlement growth.
+  isBlocked(cx, cz) { return this.hasRock(cx, cz) || this.hasTree(cx, cz); }
+  addTree(cx, cz) {
+    if (!this.cInside(cx, cz) || this.hasRock(cx, cz)) return;
+    const k = this.rockKey(cx, cz);
+    if (this.trees.has(k)) return;
+    this.trees.add(k);
+    const m = new THREE.Mesh(treeGeometry(), sharedTreeMat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    m.rotation.y = Math.random() * Math.PI * 2;
+    const s = 0.75 + Math.random() * 0.5;
+    m.scale.set(s, s * (0.85 + Math.random() * 0.3), s);
+    // Jitter inside the cell so forests don't read as a grid.
+    m.userData.ox = 0.3 + Math.random() * 0.4;
+    m.userData.oz = 0.3 + Math.random() * 0.4;
+    this.treeMeshes.set(k, m);
+    this.treeGroup.add(m);
+    this.positionTree(k);
+  }
+  removeTree(k) {
+    const m = this.treeMeshes.get(k);
+    if (!m) return;
+    this.treeGroup.remove(m);
+    this.treeMeshes.delete(k);
+    this.trees.delete(k);
+  }
+  positionTree(k) {
+    const m = this.treeMeshes.get(k);
+    if (!m) return;
+    const cx = k % GRID;
+    const cz = Math.floor(k / GRID);
+    if (this.cellMin(cx, cz) < 1) {
+      this.removeTree(k);
+      return;
+    }
+    const wx = cx + m.userData.ox, wz = cz + m.userData.oz;
+    m.position.set(wx, this.heightAtWorld(wx, wz), wz);
+  }
+  updateTreePositions() {
+    for (const k of [...this.trees]) this.positionTree(k);
+  }
+  // Forests: a low-frequency noise field picks wooded regions, and cells
+  // inside them get a tree with a probability that rises towards the
+  // forest's heart. Peaks and beaches stay bare.
+  generateTrees() {
+    const ox = Math.random() * 1000, oz = Math.random() * 1000;
+    for (let cz = 0; cz < GRID; cz++) {
+      for (let cx = 0; cx < GRID; cx++) {
+        if (!this.cellWalkable(cx, cz) || this.hasRock(cx, cz)) continue;
+        const mn = this.cellMin(cx, cz);
+        if (mn < 2 || mn > 6) continue;
+        const f = pseudoNoise(cx * 0.12 + ox, cz * 0.12 + oz);
+        const p = f > 0.6 ? 0.12 + (f - 0.6) * 1.2 : 0.008;
+        if (Math.random() < p) this.addTree(cx, cz);
+      }
+    }
+  }
+  disposeTrees() {
+    scene.remove(this.treeGroup);
+    this.treeGroup.clear();
+    this.trees.clear();
+    this.treeMeshes.clear();
   }
 
   getOwner(cx, cz) {
@@ -269,6 +382,14 @@ export class Terrain {
         }
       }
     }
+    // Reshaping the ground uproots trees on every cell touching a moved
+    // vertex — that's how the god clears forest for settlers.
+    for (const v of seen) {
+      const x = v % VW, z = Math.floor(v / VW);
+      for (let dz = -1; dz <= 0; dz++)
+        for (let dx = -1; dx <= 0; dx++)
+          if (this.hasTree(x + dx, z + dz)) this.removeTree(this.rockKey(x + dx, z + dz));
+    }
     this.rebuild();
   }
 
@@ -342,6 +463,7 @@ export class Terrain {
     this.geo.computeBoundingSphere();
     this.mesh.geometry = this.geo;
     this.updateRockPositions();
+    this.updateTreePositions();
     updateShoreField(this.h);
   }
 }

@@ -291,7 +291,7 @@ export class House {
 
   // Populous-style growth: count the flat cells at the settlement's height
   // in the 6x6 zone around it (2 cells beyond the footprint on every side).
-  // Rocks, enemy land and other settlements' footprints don't count. A
+  // Rocks, trees, enemy land and other settlements' footprints don't count. A
   // fully flat zone (32 surrounding cells) yields a castle.
   zoneLevel(game) {
     const t = game.terrain;
@@ -300,7 +300,7 @@ export class House {
       for (let cx = this.x - ZONE; cx < this.x + 2 + ZONE; cx++) {
         if (cx >= this.x && cx < this.x + 2 && cz >= this.z && cz < this.z + 2) continue;
         if (!t.cInside(cx, cz) || !t.cellIsFlat(cx, cz)) continue;
-        if (t.getV(cx, cz) !== this.terrainH || t.hasRock(cx, cz)) continue;
+        if (t.getV(cx, cz) !== this.terrainH || t.isBlocked(cx, cz)) continue;
         const own = t.getOwner(cx, cz);
         if (own !== 0 && own !== this.team) continue;
         if (game.houses.some(h => h !== this && !h.dead &&
@@ -541,6 +541,7 @@ export class Game {
     for (const w of this.walkers) w.dispose();
     for (const h of this.houses)  h.dispose();
     this.terrain.disposeRocks();
+    this.terrain.disposeTrees();
     scene.remove(this.terrain.mesh);
     this.terrain.geo.dispose();
     this.terrain.mat.dispose();

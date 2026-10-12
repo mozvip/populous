@@ -63,6 +63,20 @@ island is born obeying it.
 Each shape action costs **3 mana**. If your blue team is short, the action is
 refused and a "Not enough mana" toast flashes.
 
+## Trees
+
+Each new island is seeded with trees: a low-frequency noise field picks
+forested regions (dense in their heart, thinning at the edges), with a few
+lone trees elsewhere. Beaches and high ground stay bare, and colors follow
+the biome (charred, near-black trees on the lava world).
+
+- Walkers walk through trees, but a tree blocks building and settlement
+  growth on its cell, just like a rock.
+- Raising or lowering any vertex uproots the trees on every cell whose
+  corners moved — terraforming is how you clear forest.
+- Trees drown when their cell sinks underwater, and a volcano burns every
+  tree in its blast zone.
+
 ## Walkers
 
 Each tribe is a list of `Walker` capsules.
@@ -92,6 +106,7 @@ All of the following must be true:
 - The 2 × 2 cell footprint (= **3 × 3 vertices**) starting at the candidate
   cell is **perfectly flat at the same integer height ≥ 1**. A single
   off-by-one vertex disqualifies the patch.
+- No rock or tree sits on any of the 4 cells.
 - No existing house overlaps that cell (overlap test is *NW-corner-in-house*).
 - The cell's ownership is either neutral (`0`) or already this team's.
 - The walker can physically reach the patch — see *Movement* below.
@@ -127,7 +142,7 @@ First to 0 dies. Both can die on the same tick.
 - **Growth**: like the original game, a settlement's size depends on the
   flat land around it. Every 0.5 s it counts the cells in the 6 × 6 zone
   around its footprint (2 cells beyond it on every side, 32 cells) that are
-  flat at its own height, rock-free, not enemy-owned and not under another
+  flat at its own height, free of rocks and trees, not enemy-owned and not under another
   settlement. `level = floor(flat × 10 / 32)`, capped at 9. It climbs one
   level every 2.5 s towards that target, and drops instantly if land is lost.
 
