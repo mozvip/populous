@@ -3,18 +3,17 @@ import { GRID, STEP, TEAM_BLUE, TEAM_RED } from './constants.js';
 import { scene } from './scene.js';
 import { Terrain } from './terrain.js';
 import { LEVELS, makeBuilding } from './buildings.js';
+import { makeVillager, poseVillager, VILLAGER_STRIDE, PUNCH_RATE } from './villager.js';
 
 const ZONE = 2;                                    // cells around the footprint
 const ZONE_CELLS = (2 + 2 * ZONE) ** 2 - 4;        // 32 surrounding cells
 const GROW_TIME = 2.5;                             // seconds per upgrade step
+const FIGHT_RANGE = 0.59;                          // walkers within this distance brawl
+const FIGHT_GAP = 0.42;                            // distance brawlers square up at
 
 // =====================================================================
 // Walker
 // =====================================================================
-const sharedWalkerGeo = new THREE.CapsuleGeometry(0.18, 0.35, 4, 6);
-const matWalkerBlue = new THREE.MeshLambertMaterial({ color: 0x4ab0ff });
-const matWalkerRed  = new THREE.MeshLambertMaterial({ color: 0xff5050 });
-
 export class Walker {
   constructor(x, z, team, terrain) {
     this.x = x;
@@ -26,15 +25,35 @@ export class Walker {
     this.target = null;
     this.speed = 1.6 + Math.random() * 0.4;
     this.thinkCooldown = 0;
-    this.mesh = new THREE.Mesh(sharedWalkerGeo, team === TEAM_BLUE ? matWalkerBlue : matWalkerRed);
-    this.mesh.castShadow = true;
+    // Walk cycle: `stride` eases between standing (0) and walking (1).
+    this.walkPhase = Math.random() * Math.PI * 2;
+    this.stride = 0;
+    this.moved = false;
+    // Combat: Game.update sets `opponent` each frame the walker is in
+    // range of an enemy; `fight` eases the fighting stance in and out.
+    this.opponent = null;
+    this.fighting = false;
+    this.fightPhase = Math.random() * Math.PI * 2;
+    this.fight = 0;
+    this.villager = makeVillager(team);
+    this.mesh = new THREE.Group();
+    this.mesh.add(this.villager.root);
     scene.add(this.mesh);
     this.syncMesh();
   }
 
   syncMesh() {
-    const y = this.terrain.heightAtWorld(this.x, this.z) + 0.32;
+    const y = this.terrain.heightAtWorld(this.x, this.z);
     this.mesh.position.set(this.x, y, this.z);
+  }
+
+  animate(dt) {
+    const k = Math.min(1, dt * 10);
+    this.stride += ((this.moved ? 1 : 0) - this.stride) * k;
+    this.fight  += ((this.fighting ? 1 : 0) - this.fight) * k;
+    if (this.fighting) this.fightPhase += dt * PUNCH_RATE;
+    poseVillager(this.villager, this);
+    this.moved = false;
   }
 
   pickTarget(game) {
@@ -63,7 +82,7 @@ export class Walker {
 
     const cx = Math.floor(this.x), cz = Math.floor(this.z);
 
-    if (game.terrain.isFlatArea(cx, cz, 2) && !this.houseAt(cx, cz, game)) {
+    if (game.terrain.isFlatArea(cx, cz, 2) && !this.landClaimed(cx, cz, game)) {
       const owner = game.terrain.getOwner(cx, cz);
       if (owner === 0 || owner === this.team) {
         this.target = { kind: 'build', cx, cz };
@@ -80,7 +99,7 @@ export class Walker {
           if (!game.terrain.isFlatArea(x, z, 2)) continue;
           const own = game.terrain.getOwner(x, z);
           if (own !== 0 && own !== this.team) continue;
-          if (this.houseAt(x, z, game)) continue;
+          if (this.landClaimed(x, z, game)) continue;
           const d = dx * dx + dz * dz;
           if (d < bestD) { bestD = d; best = { x, z }; }
         }
@@ -112,9 +131,15 @@ export class Walker {
     };
   }
 
-  houseAt(x, z, game) {
+  // True if a new settlement at (x, z) would share land with an existing
+  // one. Each settlement owns the zone around it (see House.zoneLevel) and
+  // zones may not overlap, so footprints stay 2 * ZONE cells apart —
+  // otherwise walkers pack tents edge to edge and none can ever upgrade.
+  landClaimed(x, z, game) {
+    const gap = 2 * ZONE;
     return game.houses.some(h =>
-      h.x <= x && x < h.x + 2 && h.z <= z && z < h.z + 2
+      x < h.x + 2 + gap && x + 2 > h.x - gap &&
+      z < h.z + 2 + gap && z + 2 > h.z - gap
     );
   }
 
@@ -124,6 +149,34 @@ export class Walker {
       this.dead = true;
       return;
     }
+    const foe = this.opponent;
+    this.opponent = null;
+    this.fighting = !!foe && !foe.dead;
+    if (this.fighting) this.brawl(dt, foe, game);
+    else this.step(dt, game);
+    this.animate(dt);
+  }
+
+  // Square up to an enemy in range: face it and shuffle to arm's length
+  // instead of walking through it. Damage is dealt in Game.update.
+  brawl(dt, foe, game) {
+    this.target = { kind: 'attack', walker: foe };
+    const dx = foe.x - this.x, dz = foe.z - this.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 1e-3) return;
+    this.mesh.rotation.y = Math.atan2(dx, dz);
+    if (Math.abs(dist - FIGHT_GAP) < 0.02) return;
+    const maxStep = this.speed * 0.5 * dt;
+    const shift = Math.max(-maxStep, Math.min(maxStep, dist - FIGHT_GAP));
+    const nx = this.x + (dx / dist) * shift;
+    const nz = this.z + (dz / dist) * shift;
+    if (!game.terrain.cellWalkable(Math.floor(nx), Math.floor(nz))) return;
+    this.x = nx;
+    this.z = nz;
+    this.syncMesh();
+  }
+
+  step(dt, game) {
     this.thinkCooldown -= dt;
     if (!this.target || this.thinkCooldown <= 0) {
       this.pickTarget(game);
@@ -162,6 +215,8 @@ export class Walker {
     }
     this.x = nx;
     this.z = nz;
+    this.walkPhase += this.speed * dt * VILLAGER_STRIDE;
+    this.moved = true;
     this.mesh.rotation.y = Math.atan2(dx, dz);
     this.syncMesh();
   }
@@ -170,7 +225,7 @@ export class Walker {
     const t = this.target;
     if (t.kind === 'build') {
       const { cx, cz } = t;
-      if (game.terrain.isFlatArea(cx, cz, 2) && !this.houseAt(cx, cz, game)) {
+      if (game.terrain.isFlatArea(cx, cz, 2) && !this.landClaimed(cx, cz, game)) {
         const own = game.terrain.getOwner(cx, cz);
         if (own === 0 || own === this.team) {
           game.placeHouse(cx, cz, this.team);
@@ -392,7 +447,9 @@ export class Game {
         const b = this.walkers[j];
         if (b.dead || a.team === b.team) continue;
         const dx = a.x - b.x, dz = a.z - b.z;
-        if (dx * dx + dz * dz < 0.35) {
+        if (dx * dx + dz * dz < FIGHT_RANGE * FIGHT_RANGE) {
+          a.opponent = b;
+          b.opponent = a;
           a.hp -= dt * 35;
           b.hp -= dt * 35;
           if (a.hp <= 0) a.dead = true;

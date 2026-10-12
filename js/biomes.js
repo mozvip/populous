@@ -2,20 +2,22 @@ import * as THREE from 'three';
 
 // =====================================================================
 // Biomes — the four original Populous worlds. Each biome owns its own
-// terrain palette (low → high), water color, sky/fog, and light tints.
+// terrain palette (low → high, `water` being the seabed seen through the
+// shallows), deep/shallow water colors, sky/fog, and light tints.
 // =====================================================================
 export const BIOMES = {
   grassy: {
     label: 'Grassland',
     terrain: {
-      water: new THREE.Color(0x1f4f7a),
+      water: new THREE.Color(0x6a7450),
       sand:  new THREE.Color(0x7ac850),
       low:   new THREE.Color(0x66c042),
       mid:   new THREE.Color(0x9a7a48),
       high:  new THREE.Color(0xb0a89c),
       peak:  new THREE.Color(0xf4f4f8),
     },
-    water: 0x2a5a8a,
+    water: 0x0e3d63,
+    waterShallow: 0x3aa6a8,
     sky:   0x9ed4ec,
     sun:   0xfff2d8,
     hemiSky:    0xfff4e0,
@@ -24,14 +26,15 @@ export const BIOMES = {
   desert: {
     label: 'Desert',
     terrain: {
-      water: new THREE.Color(0x2f7a8a),
+      water: new THREE.Color(0xc0a868),
       sand:  new THREE.Color(0xf2d894),
       low:   new THREE.Color(0xd8a85a),
       mid:   new THREE.Color(0xb05a26),
       high:  new THREE.Color(0x7a3818),
       peak:  new THREE.Color(0xf0e0a8),
     },
-    water: 0x3a8090,
+    water: 0x0f5a72,
+    waterShallow: 0x48c8c0,
     sky:   0xe8c878,
     sun:   0xffe2a0,
     hemiSky:    0xffe0a0,
@@ -40,14 +43,17 @@ export const BIOMES = {
   snow: {
     label: 'Snow',
     terrain: {
-      water: new THREE.Color(0x355870),
+      water: new THREE.Color(0x5a6a78),
       sand:  new THREE.Color(0xd8e2ec),
       low:   new THREE.Color(0xf0f4f8),
       mid:   new THREE.Color(0xb4c0cc),
       high:  new THREE.Color(0x586878),
       peak:  new THREE.Color(0xffffff),
     },
-    water: 0x4a7494,
+    water: 0x1a3a52,
+    waterShallow: 0x6a98b0,
+    waveAmp: 0.04,
+    waveSpeed: 0.7,
     sky:   0xc8d4e0,
     sun:   0xe4ecf4,
     hemiSky:    0xd8e4f0,
@@ -63,7 +69,11 @@ export const BIOMES = {
       high:  new THREE.Color(0x261c20),
       peak:  new THREE.Color(0xff6020),
     },
-    water: 0xd84020,
+    water: 0x2a0804,
+    waterShallow: 0xff6a10,
+    waveAmp: 0.025,
+    waveSpeed: 0.25,
+    lava: true,
     sky:   0x4a2018,
     sun:   0xffa460,
     hemiSky:    0xff8048,

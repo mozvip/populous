@@ -40,9 +40,9 @@ def srgb_to_linear(c):
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
-def make_materials():
+def make_materials(palette=PALETTE):
     mats = {}
-    for name, hexcol in PALETTE.items():
+    for name, hexcol in palette.items():
         m = bpy.data.materials.new(name)
         m.use_nodes = True
         bsdf = m.node_tree.nodes.get('Principled BSDF')
@@ -60,7 +60,8 @@ def make_materials():
 # Mesh builder: accumulates low-poly primitives into one mesh
 # ---------------------------------------------------------------------
 class Builder:
-    def __init__(self):
+    def __init__(self, mat_names=MAT_NAMES):
+        self.mat_names = mat_names
         self.verts = []
         self.faces = []
         self.mat_idx = []
@@ -68,7 +69,7 @@ class Builder:
     def _add(self, pts, faces, mat):
         base = len(self.verts)
         self.verts.extend(pts)
-        mi = MAT_NAMES.index(mat)
+        mi = self.mat_names.index(mat)
         for f in faces:
             self.faces.append([base + i for i in f])
             self.mat_idx.append(mi)
@@ -148,7 +149,7 @@ class Builder:
     def to_object(self, name, mats):
         mesh = bpy.data.meshes.new(name)
         mesh.from_pydata(self.verts, [], self.faces)
-        for mname in MAT_NAMES:
+        for mname in self.mat_names:
             mesh.materials.append(mats[mname])
         for poly, mi in zip(mesh.polygons, self.mat_idx):
             poly.material_index = mi

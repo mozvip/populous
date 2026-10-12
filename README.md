@@ -85,6 +85,14 @@ blender -b --factory-startup -P tools/build_models.py -- assets/buildings.glb pr
 Faces using the `team` material are recolored per tribe at runtime
 (`js/buildings.js`).
 
+The villager model is built the same way by `tools/build_villager.py` into
+`assets/villager.glb`. Its legs and arms are separate meshes pivoted at the
+hips and shoulders, and `js/villager.js` swings them for the walk cycle:
+
+```sh
+blender -b --factory-startup -P tools/build_villager.py -- assets/villager.glb
+```
+
 ## Tech
 
 - [three.js](https://threejs.org/) r160 (via jsDelivr CDN)

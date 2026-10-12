@@ -6,6 +6,7 @@ import {
 } from './constants.js';
 import { pickTerrainColor } from './biomes.js';
 import { scene } from './scene.js';
+import { updateShoreField } from './water.js';
 
 // =====================================================================
 // Terrain (vertex-based heightmap)
@@ -304,9 +305,15 @@ export class Terrain {
         // Cell color from the minimum corner height so that slopes keep the
         // base color and only fully-elevated cells take the higher tier.
         const minH = Math.min(hNW, hNE, hSW, hSE);
+        const maxH = Math.max(hNW, hNE, hSW, hSE);
         const base = pickTerrainColor(minH);
         const own = this.getOwner(cx, cz);
         const col = base.clone();
+        // Brightness ramp per level so adjacent terraces within the same
+        // color tier stay distinguishable, plus a darker band on slopes
+        // to outline each step.
+        col.multiplyScalar(0.72 + 0.05 * minH);
+        if (maxH > minH) col.multiplyScalar(0.82);
         if (own === TEAM_BLUE)     col.lerp(TINT_BLUE, 0.35);
         else if (own === TEAM_RED) col.lerp(TINT_RED,  0.35);
 
@@ -335,6 +342,7 @@ export class Terrain {
     this.geo.computeBoundingSphere();
     this.mesh.geometry = this.geo;
     this.updateRockPositions();
+    updateShoreField(this.h);
   }
 }
 

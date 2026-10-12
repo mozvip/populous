@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GRID } from './constants.js';
 import { BIOMES, biomeState } from './biomes.js';
 import { setWeather } from './weather.js';
+import { water, setWaterBiome } from './water.js';
 
 // =====================================================================
 // Scene
@@ -37,8 +38,8 @@ controls.minDistance = 10;
 controls.maxDistance = 90;
 controls.maxPolarAngle = Math.PI * 0.46;
 
-export const sun = new THREE.DirectionalLight(initialBiome.sun, 1.1);
-sun.position.set(60, 90, 30);
+export const sun = new THREE.DirectionalLight(initialBiome.sun, 1.35);
+sun.position.set(60, 50, 30);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
 sun.shadow.camera.left = -40;
@@ -52,21 +53,11 @@ scene.add(sun);
 export const hemi = new THREE.HemisphereLight(
   initialBiome.hemiSky,
   initialBiome.hemiGround,
-  0.55,
+  0.35,
 );
 scene.add(hemi);
 
-export const water = new THREE.Mesh(
-  new THREE.PlaneGeometry(GRID * 6, GRID * 6),
-  new THREE.MeshLambertMaterial({
-    color: initialBiome.water,
-    transparent: true,
-    opacity: 0.85,
-  }),
-);
-water.rotation.x = -Math.PI / 2;
-water.position.set(GRID / 2, 0.15, GRID / 2);
-water.receiveShadow = true;
+export { water };
 scene.add(water);
 
 export function applyBiome(name) {
@@ -78,7 +69,7 @@ export function applyBiome(name) {
   sun.color.set(b.sun);
   hemi.color.set(b.hemiSky);
   hemi.groundColor.set(b.hemiGround);
-  water.material.color.set(b.water);
+  setWaterBiome(b, sun);
   setWeather(name);
 }
 

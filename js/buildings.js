@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { TEAM_BLUE } from './constants.js';
 
 // =====================================================================
@@ -28,16 +27,18 @@ const TEAM_COLORS = {
 };
 
 const templates = [];
-// Lambert materials shared by every instance, keyed by `${name}:${team}`.
+// Lambert materials shared by every instance, keyed by name (or team colour).
 // Only the `team` material actually differs between tribes.
 const materials = new Map();
 
-function lambertFor(src, team) {
-  const key = src.name === 'team' ? `team:${team}` : src.name;
+// `teamColors` lets other models (villagers) use their own tribe palette.
+export function lambertFor(src, team, teamColors = TEAM_COLORS) {
+  const isTeam = src.name === 'team';
+  const key = isTeam ? `team:${teamColors[team]}` : src.name;
   let m = materials.get(key);
   if (!m) {
     m = new THREE.MeshLambertMaterial({
-      color: src.name === 'team' ? TEAM_COLORS[team] : src.color,
+      color: isTeam ? teamColors[team] : src.color,
       flatShading: true,
     });
     if (src.name === 'fire') {
@@ -50,6 +51,8 @@ function lambertFor(src, team) {
 }
 
 export async function loadBuildings(url = 'assets/buildings.glb') {
+  // Imported lazily so a failure here can't stop the rest of the game booting.
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
   const gltf = await new GLTFLoader().loadAsync(url);
   for (let i = 0; i < LEVELS.length; i++) {
     const obj = gltf.scene.getObjectByName(`level_${i}`);
@@ -61,6 +64,7 @@ export async function loadBuildings(url = 'assets/buildings.glb') {
 // Build an instance of a settlement level for a team. Geometry and
 // materials are shared, so callers must not dispose them.
 export function makeBuilding(level, team) {
+  if (!templates[level]) return makePlaceholder(level, team);
   const root = templates[level].clone();
   root.position.set(0, 0, 0);
   root.traverse(o => {
@@ -69,5 +73,26 @@ export function makeBuilding(level, team) {
     o.castShadow = true;
     o.receiveShadow = true;
   });
+  return root;
+}
+
+// Box-and-pyramid fallback used when buildings.glb failed to load. Grows
+// a little with level so upgrades stay visible.
+const placeholderGeo = {
+  walls: new THREE.BoxGeometry(1.6, 0.7, 1.6),
+  roof:  new THREE.ConeGeometry(1.25, 0.7, 4),
+};
+function makePlaceholder(level, team) {
+  // Scale an inner group: House animates the returned root's scale.
+  const root = new THREE.Group();
+  const group = new THREE.Group();
+  root.add(group);
+  const walls = new THREE.Mesh(placeholderGeo.walls, lambertFor({ name: 'placeholder', color: new THREE.Color(0xd8d0c0) }, team));
+  walls.position.y = 0.35;
+  const roof = new THREE.Mesh(placeholderGeo.roof, lambertFor({ name: 'team' }, team));
+  roof.position.y = 1.05;
+  roof.rotation.y = Math.PI / 4;
+  for (const m of [walls, roof]) { m.castShadow = true; group.add(m); }
+  group.scale.setScalar(0.6 + 0.06 * level);
   return root;
 }
